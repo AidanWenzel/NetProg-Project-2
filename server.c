@@ -1,5 +1,9 @@
--#include <stdio.h>
+#include <stdio.h>
 #include <netdb.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
@@ -40,10 +44,12 @@ const int	UNKNOWN_PORT = 5;
 const int	FILE_ALREADY_EXISTS = 6;
 const int	NO_SUCH_USER = 7;
 
-
-//[Connected - "true" or "false", player name, player move][PlayerID]
-char* playerInfo[3][2];
-int playerTurns[2];
+int * player1Turn;// = mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+int * player2Turn;// = mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+char ** player1Name;// = mmap(NULL, sizeof(char*), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+char ** player2Name;// = mmap(NULL, sizeof(char*), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+int * player1Move;// = mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+int * player2Move;// = mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
 
 /*
 
@@ -126,6 +132,7 @@ void handle_send(int sockfd, struct DataPack* dp)
         perror("handle_send");
         exit(-1);
     }
+    sleep(1);
 }
 
 //recvfrom a datapack with error handling
@@ -152,6 +159,7 @@ int handle_recv(int sockfd, struct DataPack* dp)
         perror("handle_recv");
         exit(-1);
     }
+    sleep(1);
     return dp->size;
 }
 
@@ -179,10 +187,7 @@ int isValidMove(char* move)
 void handle_game(int sockfd, char buffer[], int size, struct DataPack* data_pack_current) {
 
     //Initial packet
-    printf("Player %d has joined the game\n", data_pack_current->playerID);
-
-    //Set player as connected
-    playerInfo[0][data_pack_current->playerID] = "true";
+    printf("Player %d has joined the game\n", data_pack_current->playerID + 1);
 
       int playernamesize = 0;
       char* playerName = "";
@@ -199,7 +204,16 @@ void handle_game(int sockfd, char buffer[], int size, struct DataPack* data_pack
         playernamesize = data_pack_current->size;
       }
       printf("Player %d is named %s\n", data_pack_current->playerID, playerName);
-      playerInfo[1][data_pack_current->playerID] = playerName;
+
+      if(data_pack_current->playerID == 0)
+      {
+        *player1Name = playerName;
+      }
+      else
+      {
+        *player2Name = playerName;
+      }
+
 
       while(1){
 
@@ -214,46 +228,76 @@ void handle_game(int sockfd, char buffer[], int size, struct DataPack* data_pack
           handle_recv(sockfd, data_pack_current);
           moveType = data_pack_current->data;
         }
-        playerInfo[2][data_pack_current->playerID] = moveType;
-        playerTurns[data_pack_current->playerID] ++;
 
-        printf("Player %d moves %s on turn %d\n", data_pack_current->playerID, moveType, playerTurns[data_pack_current->playerID]);
+        if(data_pack_current->playerID == 0)
+        {
+          (*player1Turn)++;
+          (*player1Move) = (strcmp(moveType, "rock") == 0 ? 0 : (strcmp(moveType, "paper") == 0 ? 1 : 2));
+          printf("Player 1 moves %d on turn %d\n", *player1Move, *player1Turn);
+        }
+        else
+        {
+          (*player2Turn)++;
+          (*player2Move) = (strcmp(moveType, "rock") == 0 ? 0 : (strcmp(moveType, "paper") == 0 ? 1 : 2));
+          printf("Player 2 moves %d on turn %d\n", *player2Move, *player2Turn);
+        }
+
 
         //Wait for opponent to be on the same turn
-        while(playerTurns[0] != playerTurns[1])
+        while((*player1Turn) != (*player2Turn))
         {
-          sleep(1);
+          printf("Waiting for both players. My view of the game looks like this:\n");
+          printf("%s %d , %s %d\n", *player1Name, *player1Turn, *player2Name, *player2Turn);
+          sleep(2);
         }
         printf("Both players have moved!\n");
 
         //Check for victory condition
 
         //If tie, continue
-        if(0 == strcmp(playerInfo[2][0], playerInfo[2][1]))
+        if((*player1Move) == (*player2Move))
         {
           printf("Tie, retrying...\n");
         }
         else
         {
-          if(0 == strcmp(playerInfo[2][0], "rock"))
+          //Rock
+          if(0 == (*player1Move))
           {
-            if(0 == strcmp(playerInfo[2][1], "paper"))
+            //Paper
+            if(1 == (*player2Move))
             {
-              printf("%s beats %s", playerInfo[1][1], playerInfo[1][0]);
+              printf("Player 2 beats player 1");
+            }
+            else
+            {
+              printf("Player 1 beats player 2");
             }
           }
-          else  if(0 == strcmp(playerInfo[2][0], "paper"))
+          //Paper
+          else if(1 == (*player1Move))
           {
-            if(0 == strcmp(playerInfo[2][1], "scissors"))
+            //Scissors
+            if(2 == (*player2Move))
             {
-              printf("%s beats %s", playerInfo[1][1], playerInfo[1][0]);
+              printf("Player 2 beats player 1");
+            }
+            else
+            {
+              printf("Player 1 beats player 2");
             }
           }
-          else if(0 == strcmp(playerInfo[2][0], "scissors"))
+          //Scissors
+          else if(2 == (*player1Move))
           {
-            if(0 == strcmp(playerInfo[2][1], "rock"))
+            //Rock
+            if(0 == (*player2Move))
             {
-              printf("%s beats %s", playerInfo[1][1], playerInfo[1][0]);
+              printf("Player 2 beats player 1");
+            }
+            else
+            {
+              printf("Player 1 beats player 2");
             }
           }
 
@@ -276,6 +320,17 @@ void sig_alarm(int signum)
 }
 
 int main() {
+
+  player1Turn = 0;
+  player2Turn = 0;
+
+  player1Turn = mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+  player2Turn = mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+  player1Name = mmap(NULL, sizeof(char*), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+  player2Name = mmap(NULL, sizeof(char*), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+  player1Move = mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+   player2Move = mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+
     char buffer[BUF_LEN];
     int sockfd, pid, n;
     unsigned short int opcode;
@@ -326,8 +381,6 @@ int main() {
     data_pack_current.child_len = sizeof(addr_client_info);
 
     printf("laurej2._rps._tcp.local. can be reached at port %d\n\n", ntohs(data_pack_current.addr_server_info->sin_port));
-    playerTurns[0] = 0;
-    playerTurns[1] = 0;
 
 
         while(1) {
