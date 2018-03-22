@@ -368,14 +368,14 @@ int main() {
 
     pid = getpid();
 
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if(sockfd < 0) {
         perror("socket in main");
         return EXIT_FAILURE;
     }
 
     int options = 1;
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&options , sizeof(int));
+    //setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&options , sizeof(int));
 
     sockaddr_len = sizeof(addr_server_info);
     memset(&addr_server_info, 0, sockaddr_len);
@@ -394,6 +394,11 @@ int main() {
         return EXIT_FAILURE;
     }
 
+    if(listen(sockfd,2)==-1)
+     {
+         perror("listen");
+     }
+
     getsockname(sockfd, (struct sockaddr*) &addr_server_info, &sockaddr_len);
 
     data_pack_current.addr_server_info = &addr_server_info;
@@ -404,39 +409,32 @@ int main() {
     printf("laurej2._rps._tcp.local. can be reached at port %d\n\n", ntohs(data_pack_current.addr_server_info->sin_port));
 
 
-        while(1) {
-    intr_recv:
-            n = recvfrom(sockfd, buffer, BUF_LEN, 0, (struct sockaddr*) &addr_server_info, &sockaddr_len);
-            if(n < 0) {
-                if(errno == EINTR) goto intr_recv;
-                perror("recvfrom in main");
-                return EXIT_FAILURE;
-            }
-            else
-            {
-              data_pack_current.playerID = playercount;
-              playercount++;
-            }
+    int newconn = sockfd;
+    while(1) {
+        newconn = accept(sockfd, (struct sockaddr*) &addr_client_info, &child_len);
 
-                pid = fork();
-                if(pid < 0)
-                {
-                    perror("what the fork?");
-                    return EXIT_FAILURE;
-                }
-                if(pid == 0)
-                {
-                    if((accept(sockfd, (struct sockaddr*) &addr_client_info, &child_len)) < 0) {
-                        perror("accept in main 2");
-                        exit(-1);
-                    }
-                    break;
-                }
+        if ((pid = fork()) == -1)
+        {
+            close(newconn);
+            continue;
         }
+        else if(pid > 0)
+        {
+            close(newconn);
+            playercount++;
+            continue;
+        }
+        else if(pid == 0)
+        {
+            data_pack_current.playerID = playercount;
+            break;
+        }
+
+    }
 
     printf("Main 2: Port %d aka %d socket %d PID %d\n\n", data_pack_current.addr_server_info->sin_port, ntohs(data_pack_current.addr_server_info->sin_port), sockfd, getpid());
 
-    handle_game(sockfd, buffer, n, &data_pack_current);
-    close(sockfd);
+    handle_game(newconn, buffer, n, &data_pack_current);
+    close(newconn);
     return 0;
 }
