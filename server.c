@@ -123,7 +123,7 @@ void appendBytes(struct DataPack* dp, char* buff, short buflen)
 void handle_send(int sockfd, struct DataPack* dp)
 {
     ssize_t n;
-    n = sendto(sockfd, dp->data, dp->size, 0, (struct sockaddr *)dp->addr_server_info, dp->server_len);
+    n = send(sockfd, dp->data, dp->size, 0);
 /*
     printf("# HANDLE SEND: Size %d Addr %s Port %d aka %d socket %d sent %d\n",
            dp->size, inet_ntoa(dp->addr_server_info->sin_addr), dp->addr_server_info->sin_port, ntohs(dp->addr_server_info->sin_port), sockfd, (int) n);
@@ -140,7 +140,7 @@ void handle_send(int sockfd, struct DataPack* dp)
 int handle_recv(int sockfd, struct DataPack* dp)
 {
     empty(dp);
-    dp->size = recvfrom(sockfd, dp->data, BUF_LEN, 0, (struct sockaddr*) dp->addr_client_info, &(dp->child_len));
+    dp->size = recv(sockfd, dp->data, BUF_LEN, 0);
 
     //Replace newlines with null terminators
     for (int i = 0; i < dp->size; i++)
@@ -405,15 +405,8 @@ int main() {
                 }
                 if(pid == 0)
                 {
-                    close(sockfd);
-                    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-                    if(sockfd < 0) {
-                        perror("socket in main 2");
-                        exit(-1);
-                    }
-
-                    if((bind(sockfd, (struct sockaddr*) &addr_client_info, child_len)) < 0) {
-                        perror("bind in main 2");
+                    if((accept(sockfd, (struct sockaddr*) &addr_client_info, child_len)) < 0) {
+                        perror("accept in main 2");
                         exit(-1);
                     }
                     break;
