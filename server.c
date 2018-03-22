@@ -322,7 +322,7 @@ int main() {
     dns_sd_fd = DNSServiceRefSockFD(serviceRef);
     if(dns_sd_fd > parent_fd) { nfds = dns_sd_fd + 1; }
     else {                      nfds = parent_fd + 1; }
-    delay.tv_sec = 99999999;
+    delay.tv_sec = 15;
 
     if(bind(parent_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("Failed to attach to port");
@@ -363,7 +363,7 @@ int main() {
                 perror("ERROR on accept");
                 exit(1);
             }
-            handle_game(child_fd);
+            //handle_game(child_fd);
         }
     }
 
@@ -372,7 +372,7 @@ int main() {
     return EXIT_SUCCESS;
 
     /************************************************************/
-
+    /*
     pid = getpid();
 
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -454,5 +454,5 @@ int main() {
 
     handle_game(sockfd, buffer, n, &data_pack_current);
     close(sockfd);
-    return 0;
+    return 0;*/
 }
