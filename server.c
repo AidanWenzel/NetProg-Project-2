@@ -1,4 +1,3 @@
-#include <stdio.h>
 // compile:   gcc server.c -ldns_sd -Wall
 // find:     avahi-browse -r _rps._tcp
 
@@ -36,22 +35,6 @@ const int EXIT_TIME = 10;
 //[Connected - "true" or "false", player name, player move][PlayerID]
 char* playerInfo[3][2];
 int playerTurns[2];
-//Packet types
-const int RRQ = 1;
-const int WRQ = 2;
-const int DATA = 3;
-const int ACK = 4;
-const int ERROR = 5;
-
-//Error types
-const int NOT_DEFINED = 0;
-const int	FILE_NOT_FOUND = 1;
-const int	ACCESS_VIOLATION = 2;
-const int	DISK_FULL = 3;
-const int	ILLEGAL_OP = 4;
-const int	UNKNOWN_PORT = 5;
-const int	FILE_ALREADY_EXISTS = 6;
-const int	NO_SUCH_USER = 7;
 
 int * player1Turn;// = mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
 int * player2Turn;// = mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
@@ -99,7 +82,7 @@ static void register_cb(DNSServiceRef service,
     if (errorCode != kDNSServiceErr_NoError)
         fprintf(stderr, "register_cb returned %d\n", errorCode);
     else
-        printf("%-15s %s.%s%s\n","REGISTER", name, type, domain);
+        printf("%-15s %s.%s%s\n","REGISTERED", name, type, domain);
 }
 
 
@@ -115,8 +98,8 @@ struct DataPack
     //Therefore it can hold connection info alongside data
     struct sockaddr_in *addr_server_info;
     socklen_t server_len;  //Might as well store this here as well
-		struct sockaddr_in *addr_client_info;
-		socklen_t child_len;	//Might as well store this here as well
+    struct sockaddr_in *addr_client_info;
+	socklen_t child_len;	//Might as well store this here as well
 };
 
 
@@ -210,7 +193,7 @@ int isValidMove(char* move)
   return 1;
 }
 
-void handle_game(int sockfd, char buffer[], int size, struct DataPack* data_pack_current) {
+void handle_game(int sockfd, struct DataPack* data_pack_current) {
 
     //Initial packet
     printf("Player %d has joined the game\n", data_pack_current->playerID + 1);
@@ -352,8 +335,6 @@ void handle_game(int sockfd, char buffer[], int size, struct DataPack* data_pack
         }
 
       }
-
-    return;
 }
 
 //Signal handlers
@@ -392,8 +373,7 @@ int main() {
     struct DataPack data_pack_current;
     empty(&data_pack_current);
 
-    /* AIDAN'S CODE *********************************************/
-    unsigned short port = 12345;
+    unsigned short myPort = 12345;
 
     fd_set readfds;
     int nfds, dns_sd_fd, child_fd, parent_fd;
@@ -404,30 +384,30 @@ int main() {
     DNSServiceErrorType err;
 
     parent_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if(parent_fd < 0) {
+    if (parent_fd < 0) {
         perror("Failed to open socket");
         exit(1);
     }
 
     //don't have to wait to rebind ports while debugging
     int optval = 1;
-    setsockopt(parent_fd, SOL_SOCKET, SO_REUSEADDR, (const void*)&optval , sizeof(int));
+    setsockopt(parent_fd, SOL_SOCKET, SO_REUSEADDR, (const void *) &optval, sizeof(int));
 
     //addrs
-    bzero((char*)&server_addr, sizeof(server_addr));
+    bzero((char *) &server_addr, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    server_addr.sin_port = htons(port);
+    server_addr.sin_port = htons(myPort);
 
     //register dns service
     DNSServiceRegister(&serviceRef, 0, 0, "wenzea", "_rps._tcp",
-                       "local", NULL, htons(port), 0, NULL, register_cb, NULL);
+                       "local", NULL, htons(myPort), 0, NULL, register_cb, NULL);
     dns_sd_fd = DNSServiceRefSockFD(serviceRef);
-    if(dns_sd_fd > parent_fd) { nfds = dns_sd_fd + 1; }
-    else {                      nfds = parent_fd + 1; }
-    delay.tv_sec = 15;
+    if (dns_sd_fd > parent_fd) { nfds = dns_sd_fd + 1; }
+    else { nfds = parent_fd + 1; }
+    delay.tv_sec = 3;
 
-    if(bind(parent_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+    if (bind(parent_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
         perror("Failed to attach to port");
         exit(1);
     }
@@ -436,56 +416,74 @@ int main() {
         exit(1);
     }
 
-    printf("Starting on port %d\n", port);
-    srand(time(NULL));
+    printf("Starting on port %d\n", myPort);
+    //srand(time(NULL));
 
-    while(1) {
+    int myPID = getpid();
+    int playerCount = 0;
+
+    while (1) {
         FD_ZERO(&readfds);
         FD_SET(parent_fd, &readfds);
         FD_SET(dns_sd_fd, &readfds);
         FD_SET(0, &readfds);
 
-        if(select(nfds, &readfds, NULL, NULL, &delay) < 0) {
+        if (select(nfds, &readfds, NULL, NULL, &delay) < 0) {
             perror("ERROR in select");
             exit(1);
         }
 
         err = kDNSServiceErr_NoError;
-        if(FD_ISSET(dns_sd_fd, &readfds)) {
+        if (FD_ISSET(dns_sd_fd, &readfds)) {
             err = DNSServiceProcessResult(serviceRef);
             //printf("ZeroConf Activity\n");
         }
-        if(err) {
+        if (err) {
             fprintf(stderr, "DNSServiceProcessResult returned %d\n", err);
         }
 
         if (FD_ISSET(parent_fd, &readfds)) {
-            child_fd = accept(parent_fd, (struct sockaddr*)&client_addr, &client_len);
+            printf("Connection detected...");
+            child_fd = accept(parent_fd, (struct sockaddr *) &client_addr, &client_len);
+            printf("Child accepted...");
 
             if (child_fd < 0) {
                 perror("ERROR on accept");
                 exit(1);
             }
-            //handle_game(child_fd);
+            fork();
+
+            if(myPID == 0) {
+                data_pack_current.playerID = (unsigned int)playerCount;
+                handle_game(child_fd, &data_pack_current);
+            }
+            playerCount++;
         }
     }
 
     DNSServiceRefDeallocate(serviceRef);
 
     return EXIT_SUCCESS;
+}
 
-    /************************************************************/
-    /*
+int receiveClients() {
+    /*char buffer[BUF_LEN];
+    int sockfd, pid, n;
+    struct sockaddr_in addr_server_info;
+    struct sockaddr_in addr_client_info;
+    socklen_t sockaddr_len;
+    socklen_t child_len;
+
     pid = getpid();
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if(sockfd < 0) {
         perror("socket in main");
         return EXIT_FAILURE;
     }
 
     int options = 1;
-    //setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&options , sizeof(int));
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&options , sizeof(int));
 
     sockaddr_len = sizeof(addr_server_info);
     memset(&addr_server_info, 0, sockaddr_len);
@@ -504,11 +502,6 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    if(listen(sockfd,2)==-1)
-     {
-         perror("listen");
-     }
-
     getsockname(sockfd, (struct sockaddr*) &addr_server_info, &sockaddr_len);
 
     data_pack_current.addr_server_info = &addr_server_info;
@@ -517,34 +510,50 @@ int main() {
     data_pack_current.child_len = sizeof(addr_client_info);
 
     printf("laurej2._rps._tcp.local. can be reached at port %d\n\n", ntohs(data_pack_current.addr_server_info->sin_port));
+    playerTurns[0] = 0;
+    playerTurns[1] = 0;
 
 
-    int newconn = sockfd;
     while(1) {
-        newconn = accept(sockfd, (struct sockaddr*) &addr_client_info, &child_len);
-
-        if ((pid = fork()) == -1)
-        {
-            close(newconn);
-            continue;
+        intr_recv:
+        n = recvfrom(sockfd, buffer, BUF_LEN, 0, (struct sockaddr*) &addr_server_info, &sockaddr_len);
+        if(n < 0) {
+            if(errno == EINTR) goto intr_recv;
+            perror("recvfrom in main");
+            return EXIT_FAILURE;
         }
-        else if(pid > 0)
-        {
-            close(newconn);
-            playercount++;
-            continue;
-        }
-        else if(pid == 0)
+        else
         {
             data_pack_current.playerID = playercount;
-            break;
+            playercount++;
         }
 
+        pid = fork();
+        if(pid < 0)
+        {
+            perror("what the fork?");
+            return EXIT_FAILURE;
+        }
+        if(pid == 0)
+        {
+            close(sockfd);
+            sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+            if(sockfd < 0) {
+                perror("socket in main 2");
+                exit(-1);
+            }
+
+            if((bind(sockfd, (struct sockaddr*) &addr_client_info, child_len)) < 0) {
+                perror("bind in main 2");
+                exit(-1);
+            }
+            break;
+        }
     }
 
     printf("Main 2: Port %d aka %d socket %d PID %d\n\n", data_pack_current.addr_server_info->sin_port, ntohs(data_pack_current.addr_server_info->sin_port), sockfd, getpid());
 
-    handle_game(newconn, buffer, n, &data_pack_current);
-    close(newconn);
+    handle_game(sockfd, buffer, n, &data_pack_current);
+    close(sockfd);*/
     return 0;
 }
