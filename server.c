@@ -1,3 +1,6 @@
+// compile:   gcc server.c -ldns_sd -Wall
+// find:     avahi-browse -r _rps._tcp
+
 #include <stdio.h>
 #include <netdb.h>
 #include <fcntl.h>
@@ -317,7 +320,7 @@ int main() {
     server_addr.sin_port = htons(port);
 
     //register dns service
-    DNSServiceRegister(&serviceRef, 0, 0, "wenzea", "_rpc._tcp",
+    DNSServiceRegister(&serviceRef, 0, 0, "wenzea", "_rps._tcp",
                        "local", NULL, htons(port), 0, NULL, register_cb, NULL);
     dns_sd_fd = DNSServiceRefSockFD(serviceRef);
     if(dns_sd_fd > parent_fd) { nfds = dns_sd_fd + 1; }
