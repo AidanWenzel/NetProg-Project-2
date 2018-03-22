@@ -426,7 +426,7 @@ int main() {
                 }
                 if(pid == 0)
                 {
-                    if((accept(sockfd, (struct sockaddr*) &addr_client_info, child_len)) < 0) {
+                    if((accept(sockfd, (struct sockaddr*) &addr_client_info, &child_len)) < 0) {
                         perror("accept in main 2");
                         exit(-1);
                     }
