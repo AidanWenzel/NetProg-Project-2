@@ -221,7 +221,7 @@ void handle_game(int sockfd, char buffer[], int size, struct DataPack* data_pack
         while(0 != isValidMove(moveType))
         {
           empty(data_pack_current);
-          appendBytes(data_pack_current, "What is your move?", 18);
+          appendBytes(data_pack_current, "Rock, paper, or scissors?", 25);
           handle_send(sockfd, data_pack_current);
 
           empty(data_pack_current);
@@ -258,6 +258,9 @@ void handle_game(int sockfd, char buffer[], int size, struct DataPack* data_pack
         if((*player1Move) == (*player2Move))
         {
           printf("Tie, retrying...\n");
+          empty(data_pack_current);
+          appendBytes(data_pack_current, "Tie!", 4);
+          handle_send(sockfd, data_pack_current);
         }
         else
         {
@@ -268,10 +271,16 @@ void handle_game(int sockfd, char buffer[], int size, struct DataPack* data_pack
             if(1 == (*player2Move))
             {
               printf("Player 2 beats player 1");
+              empty(data_pack_current);
+              appendBytes(data_pack_current, "PAPER covers ROCK! Player2 defeats Player1!", 43);
+              handle_send(sockfd, data_pack_current);
             }
             else
             {
               printf("Player 1 beats player 2");
+              empty(data_pack_current);
+              appendBytes(data_pack_current, "ROCK smashes SCISSORS! Player1 defeats Player2!", 47);
+              handle_send(sockfd, data_pack_current);
             }
           }
           //Paper
@@ -281,10 +290,16 @@ void handle_game(int sockfd, char buffer[], int size, struct DataPack* data_pack
             if(2 == (*player2Move))
             {
               printf("Player 2 beats player 1");
+              empty(data_pack_current);
+              appendBytes(data_pack_current, "SCISSORS cuts PAPER! Player2 defeats Player1!", 45);
+              handle_send(sockfd, data_pack_current);
             }
             else
             {
               printf("Player 1 beats player 2");
+              empty(data_pack_current);
+              appendBytes(data_pack_current, "PAPER covers ROCK! Player1 defeats Player2!", 43);
+              handle_send(sockfd, data_pack_current);
             }
           }
           //Scissors
@@ -294,10 +309,16 @@ void handle_game(int sockfd, char buffer[], int size, struct DataPack* data_pack
             if(0 == (*player2Move))
             {
               printf("Player 2 beats player 1");
+              empty(data_pack_current);
+              appendBytes(data_pack_current, "ROCK smashes SCISSORS! Player2 defeats Player1!", 47);
+              handle_send(sockfd, data_pack_current);
             }
             else
             {
               printf("Player 1 beats player 2");
+              empty(data_pack_current);
+              appendBytes(data_pack_current, "SCISSORS cuts PAPER! Player2 defeats Player1!", 45);
+              handle_send(sockfd, data_pack_current);
             }
           }
 
